@@ -227,6 +227,51 @@ created_at TIMESTAMP DEFAULT NOW()
 UNIQUE(competitor_id, date)
 ```
 
+### Table: keyword_rankings
+```sql
+id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+client_id UUID REFERENCES clients(id)
+keyword VARCHAR(255) NOT NULL
+position INTEGER
+date DATE NOT NULL
+created_at TIMESTAMP DEFAULT NOW()
+UNIQUE(client_id, keyword, date)
+```
+
+### Table: uptime_logs
+```sql
+id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+client_id UUID REFERENCES clients(id)
+status VARCHAR(20) NOT NULL -- 'up', 'down'
+response_time_ms INTEGER
+checked_at TIMESTAMP DEFAULT NOW()
+```
+
+### Table: scheduled_posts
+```sql
+id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+client_id UUID REFERENCES clients(id)
+platform VARCHAR(50) NOT NULL -- 'gbp', 'facebook'
+content TEXT NOT NULL
+image_url VARCHAR(500)
+scheduled_for TIMESTAMP NOT NULL
+published_at TIMESTAMP
+status VARCHAR(50) DEFAULT 'scheduled' -- 'scheduled', 'published', 'failed'
+created_at TIMESTAMP DEFAULT NOW()
+```
+
+### Table: review_requests
+```sql
+id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+client_id UUID REFERENCES clients(id)
+customer_phone VARCHAR(20)
+customer_name VARCHAR(255)
+job_date DATE
+sent_at TIMESTAMP
+review_received BOOLEAN DEFAULT false
+created_at TIMESTAMP DEFAULT NOW()
+```
+
 ### Table: alerts
 ```sql
 id UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -444,14 +489,24 @@ res.status(400).json({ success: false, error: 'message' })
 
 ## 8. CURRENT BUILD STATE
 
-### Completed: NOTHING YET — starting from zero
+### SESSION 1 — COMPLETE ✅
+- Backend Node.js/Express initialized and running
+- PostgreSQL 16 connected (Ubuntu 24.04 uses PG16 — not PG15)
+- 14 tables created: agencies, users, clients, google_oauth_tokens, facebook_oauth_tokens, metrics_gbp, metrics_ga4, metrics_gsc, metrics_facebook, call_tracking_numbers, calls, competitors, competitor_metrics, alerts
+- Express server running on port 3001 via PM2 (0 restarts)
+- Health check live: http://204.168.139.204/health returns correct response
+- GitHub: https://github.com/Marin-N/pelara — 33 files committed
+- All 6 route stubs, 7 service stubs, 2 job stubs created
+- Deploy scripts built: setup-server.sh, deploy.sh, nginx.conf
+- DB password: stored in /var/www/pelara/backend/.env on server ONLY — never commit
 
-### Session 1 target:
-- [ ] Initialize backend Node.js/Express project
-- [ ] Connect to PostgreSQL database
-- [ ] Run database migrations (create all tables above)
-- [ ] Basic Express server running on port 3001
-- [ ] Health check endpoint: GET /health returns { status: 'ok' }
+### IMPORTANT NOTES FROM SESSION 1:
+- PostgreSQL is version 16 (not 15) — Ubuntu 24.04 default repos
+- Auth0 credentials in .env are PLACEHOLDERS — need real Auth0 app credentials before Session 2
+- 4 new tables NOT YET in database — Claude Code must add these in Session 2 migration:
+  keyword_rankings, uptime_logs, scheduled_posts, review_requests
+
+### SESSION 2 — NEXT TARGET: Auth0 + user system
 
 ### Session 2 target:
 - [ ] Auth0 integration — login, callback, logout, get current user
@@ -463,6 +518,101 @@ res.status(400).json({ success: false, error: 'message' })
 - [ ] Frontend: React app initialized with Vite
 - [ ] Frontend: Auth0 login flow working
 - [ ] Frontend: Basic client list page
+
+### Session 4 — Google OAuth + GBP data
+- [ ] Google OAuth connection per client
+- [ ] Pull GBP metrics: views, clicks, calls, direction requests
+- [ ] Store in metrics_gbp table
+- [ ] Display on dashboard
+
+### Session 5 — GA4 + Search Console
+- [ ] Google Analytics 4 integration
+- [ ] Google Search Console integration
+- [ ] Store in metrics_ga4 and metrics_gsc tables
+
+### Session 6 — Facebook data
+- [ ] Facebook Graph API OAuth
+- [ ] Pull page reach, engagement, followers
+- [ ] Store in metrics_facebook table
+
+### Session 7 — Dashboard UI
+- [ ] Metric cards component
+- [ ] Charts using Recharts
+- [ ] Date range selector
+- [ ] Client switcher for agencies
+
+### Session 8 — Alerts system
+- [ ] Daily cron: check all metrics for 20%+ drop week-over-week
+- [ ] Create alert records in database
+- [ ] Alert banner on dashboard
+- [ ] Email alerts via Resend
+
+### Session 9 — Automated weekly reports
+- [ ] Weekly PDF report per client (every Monday)
+- [ ] Pull all stored metrics
+- [ ] Auto-email to agency
+
+### Session 9b — Uptime monitoring + keyword rank tracking
+- [ ] Website uptime monitor: ping client website every 5 minutes
+- [ ] Alert immediately if site goes down (email + dashboard alert)
+- [ ] Keyword rank tracker: track daily Google position for target keywords
+- [ ] New table: keyword_rankings (client_id, keyword, position, date)
+- [ ] Alert when ranking drops 3+ positions in one day
+
+### Session 10 — Stripe billing
+- [ ] Subscription plans: Starter £49, Growth £99, Agency £199, Agency Pro £399
+- [ ] Payment flow with Stripe Checkout
+- [ ] Webhook handling for subscription events
+- [ ] Client access gated by active subscription
+
+### Session 11 — Call tracking (Twilio)
+- [ ] Provision tracking numbers per client per channel
+- [ ] Twilio webhook receives calls and logs them
+- [ ] Call attribution engine (which channel generated the call)
+- [ ] Missed call alerts
+- [ ] Call log dashboard page
+
+### Session 12 — GBP post scheduler
+- [ ] Agency can write and schedule GBP posts directly in Pelara
+- [ ] Posts published to client GBP via Google API on scheduled date/time
+- [ ] Post calendar view per client
+- [ ] Post performance tracking (views, clicks from each post)
+
+### Session 13 — Review request automation
+- [ ] After a job is logged in the system, trigger a review request
+- [ ] Send WhatsApp/SMS to customer via Twilio
+- [ ] Template builder: agency customises the review request message
+- [ ] Track: request sent, review received, review count growth
+
+### Session 14 — Competitor intelligence
+- [ ] Google Places API finds top 5 competitors per client automatically
+- [ ] Weekly scan: review count, rating, GBP post frequency
+- [ ] Alert when competitor gains significant reviews or rankings
+- [ ] Weekly competitor digest email per client
+
+### Session 15 — NAP consistency + schema validator
+- [ ] NAP checker: scan major directories (Yelp, Yell, Checkatrade, TrustATrader) for client's name/address/phone
+- [ ] Flag inconsistencies that could hurt local rankings
+- [ ] Schema markup validator: check client website has correct LocalBusiness JSON-LD
+- [ ] Directory listing health report per client
+
+### Session 16 — AI monthly action plan
+- [ ] Claude API generates client-specific monthly recommendations based on all stored data
+- [ ] Pulls: metric trends, competitor movements, review velocity, ranking changes
+- [ ] Outputs: prioritised action list for agency to act on
+- [ ] Delivered as PDF report or in-dashboard card
+
+### Session 17 — Landing page + waitlist (do this BEFORE Session 1)
+- [ ] Simple landing page at pelara.ai
+- [ ] Email capture form for early access waitlist
+- [ ] Basic product description and positioning
+- [ ] Hosted on Hetzner VPS from day one
+
+### Session 18 — Legal documents
+- [ ] Terms of service
+- [ ] Privacy policy (GDPR compliant — UK + EU)
+- [ ] Data processing agreement template for agency clients
+- [ ] Cookie consent banner on landing page
 
 ### Ongoing after each session:
 - Update this file: move completed items to "Completed" section
@@ -610,6 +760,150 @@ When complete, report: GitHub repo URL, server health check URL, PM2 status, and
 That single command builds the entire foundation, deploys it live, and gives you a running server. Every subsequent session follows the same pattern: paste the context file, state what was built, give the next task.
 
 ---
+
+
+---
+
+## 13. AGENCY INTELLIGENCE — WHAT PROFESSIONAL AGENCIES USE & WHAT PELARA MUST HAVE
+
+### What Tier 2-3 agencies use today (and pay for separately):
+- AgencyAnalytics: £10-15/client/month — reporting dashboards only, no call tracking
+- Databox: £47+/month — real-time KPIs, goal tracking, benchmark groups
+- DashThis: £49-149/month — automated reports, no competitor intelligence
+- Semrush: £99-449/month — SEO + competitor, no GBP/call tracking
+- CallRail: £45+/month — call tracking only, no local analytics
+- Whatagraph: Custom pricing — visual reports, multi-channel, no local SEO focus
+- Looker Studio: Free — powerful but manual, no automation, no alerts
+
+**Total a serious agency spends: £250-700/month across 4-5 tools.**
+**Pelara replaces all of it at £199-399/month. That is the pitch.**
+
+---
+
+### FEATURES FROM AGENCY ANALYSIS — ADD TO BUILD PLAN:
+
+#### Feature A: Client Onboarding Wizard (Session 19)
+Professional agencies lose clients in the first 30 days because setup is chaotic.
+Pelara must have a structured onboarding flow when an agency adds a new client:
+- Step 1: Business name, type, location, website URL
+- Step 2: Connect Google (OAuth — GBP, GA4, Search Console in one flow)
+- Step 3: Connect Facebook (OAuth)
+- Step 4: Enter target keywords (what they want to rank for)
+- Step 5: Enter top 3 competitors (Pelara auto-finds the rest)
+- Step 6: Set KPI targets (reviews goal, ranking goal, calls goal per month)
+- Step 7: Confirm and launch — first report generates automatically
+This replaces the current manual "add client" flow with a guided wizard.
+New table: onboarding_steps (client_id, step, completed, completed_at)
+
+#### Feature B: Goal Tracking Per Client (Session 20)
+Every professional agency sets targets. Pelara must show progress vs goals — not just raw numbers.
+- Agency sets goals per client: "50 Google reviews by June", "rank top 3 for X keyword by August"
+- Dashboard shows: current vs target, % progress, days remaining, on track / at risk / behind
+- Alert when a goal is falling behind (7 days before deadline, 30% below pace)
+New table: client_goals (id, client_id, metric_type, target_value, target_date, current_value, status)
+metric_type options: reviews_count, keyword_position, calls_per_week, gbp_views, facebook_followers
+
+#### Feature C: Industry Benchmarking (Session 21)
+The single most powerful client conversation tool.
+Instead of "you have 38 clicks this month", say "locksmiths in your area average 210 clicks — you are at 18%."
+- Pelara stores anonymised aggregate data across all clients by business type + region
+- Each client dashboard shows their metric vs industry average
+- Weekly report includes benchmark context: "Your review count is below average for Coventry locksmiths"
+New table: industry_benchmarks (business_type, region, metric_type, avg_value, top_quartile_value, updated_at)
+
+#### Feature D: QBR Auto-Generator (Session 22)
+Every 90 days, Pelara auto-generates a Quarterly Business Review document per client.
+Agencies currently spend 4-8 hours per client on this manually.
+QBR contains:
+- Quarter summary: what improved, what dropped, by how much
+- Competitor movement: who gained, who lost, why
+- Goal achievement: which targets were hit, which were missed
+- Review velocity chart: reviews over 90 days vs competitors
+- Top 3 actions for next quarter (AI-generated based on data)
+- Branded PDF, ready to send to the client in one click
+This is built on top of the existing report infrastructure (Session 9) but quarterly + strategic.
+
+#### Feature E: Diagnostic Onboarding Tool on pelara.ai Website (Session 17 — DO FIRST)
+This is the lead generation engine before the product exists.
+A multi-step form on pelara.ai that any local business or agency can complete for free.
+Flow:
+1. Business type + location + how long trading
+2. Current situation: calls per week, Google reviews count, on Google Maps, website yes/no
+3. Algorithm compares to industry benchmarks
+4. Shows the gap: "Locksmiths with 50+ reviews get 3x more calls. You have 5."
+5. Shows two futures:
+   - Outcome A (fix these 4 things): projected calls increase X to Y in 90 days
+   - Outcome B (do nothing): based on competitor growth, you lose Z% market share in 6 months
+6. Shows exact weaknesses: GBP inactive, no area pages, low review count, missing citations
+7. "Start your free trial — Pelara monitors all of this automatically"
+This captures email, qualifies the lead, and demonstrates value before they pay a penny.
+Build with Claude Code in Session 17 as a standalone HTML page on pelara.ai.
+
+#### Feature F: Client Health Score (Session 23)
+A single number per client that tells the agency at a glance how healthy that client is.
+Score 0-100 calculated from:
+- Review velocity (gaining reviews? +points. Stagnant? -points)
+- GBP activity (posts this week? +points. Silent 14+ days? -points)
+- Ranking trend (improving? +points. Dropping? -points)
+- Call volume trend (up? +points. Down? -points)
+- Competitor gap (pulling ahead? +points. Falling behind? -points)
+Score displayed on agency overview dashboard with colour coding:
+- 80-100: Green — Healthy
+- 60-79: Amber — Needs attention
+- 0-59: Red — At risk
+Agencies can sort clients by health score to prioritise where to spend time.
+New column: health_score INTEGER on clients table, recalculated daily by cron job.
+
+#### Feature G: Benchmark Client vs Client (Agency internal view) (Session 24)
+Agencies with multiple clients in the same industry can see who is performing best.
+"You manage 6 locksmiths. Here is how they rank against each other."
+This helps agencies identify best practices from their top performers and apply to weaker clients.
+Also creates internal competition — clients improve when they know they are being compared.
+Only visible to agency admin, never to individual clients.
+
+#### Feature H: Automated Alert Escalation (upgrade Session 8)
+Current alert system detects drops. Upgrade it with escalation levels:
+- Level 1 (Yellow): Metric down 10-20% — note in dashboard
+- Level 2 (Orange): Metric down 20-40% — email to agency
+- Level 3 (Red): Metric down 40%+ or zero calls for 48h — SMS to agency owner via Twilio
+- Level 4 (Critical): Competitor overtook you in rankings + your GBP inactive — emergency alert
+This is what Victoria's situation needed. She had 2 days of silence. The system should have screamed on day 1.
+
+---
+
+### UPDATED FULL SESSION ROADMAP (in priority order):
+
+0. ✅ SESSION 1 — Backend foundation (COMPLETE)
+1. SESSION 17 — Diagnostic landing page on pelara.ai (DO THIS NOW — generates leads while you build)
+2. SESSION 2 — Auth0 + user system
+3. SESSION 3 — Client management + React frontend
+4. SESSION 4 — Google OAuth + GBP data
+5. SESSION 5 — GA4 + Search Console
+6. SESSION 6 — Facebook data
+7. SESSION 7 — Dashboard UI
+8. SESSION 8 — Alerts system (with escalation levels from Feature H)
+9. SESSION 9 — Automated weekly reports
+10. SESSION 9b — Uptime monitoring + keyword rank tracking
+11. SESSION 10 — Stripe billing
+12. SESSION 11 — Call tracking (Twilio)
+13. SESSION 12 — GBP post scheduler
+14. SESSION 13 — Review request automation
+15. SESSION 14 — Competitor intelligence
+16. SESSION 15 — NAP consistency + schema validator
+17. SESSION 16 — AI monthly action plan
+18. SESSION 18 — Legal documents (GDPR, ToS, Privacy Policy)
+19. SESSION 19 — Client onboarding wizard (Feature A)
+20. SESSION 20 — Goal tracking per client (Feature B)
+21. SESSION 21 — Industry benchmarking (Feature C)
+22. SESSION 22 — QBR auto-generator (Feature D)
+23. SESSION 23 — Client health score (Feature F)
+24. SESSION 24 — Benchmark client vs client (Feature G)
+
+---
+
+*Total: 24 build sessions. At 1-2 sessions per week, full product in 12-24 weeks.*
+*First paying customer possible after Session 10 (Stripe billing live).*
+*First serious agency demo possible after Session 7 (dashboard UI complete).*
 
 *Pelara.ai — See further. Act faster.*
 *This file is the single source of truth. Keep it updated after every build session.*
