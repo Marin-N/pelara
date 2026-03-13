@@ -2,6 +2,8 @@ const router = require('express').Router();
 const { requireAuth, attachUser } = require('../middleware/auth');
 const { getClientById } = require('../services/clientService');
 const { getGBPMetricsSummary } = require('../services/gbpService');
+const { getGA4MetricsSummary } = require('../services/ga4Service');
+const { getGSCMetricsSummary } = require('../services/gscService');
 const { syncClient } = require('../jobs/syncMetrics');
 
 router.use(requireAuth, attachUser);
@@ -22,16 +24,26 @@ router.get('/:clientId/summary', async (req, res, next) => {
     const client = await checkClientOwnership(req, res);
     if (!client) return;
 
-    const gbp = await getGBPMetricsSummary(req.params.clientId);
+    const [gbp, ga4, gsc] = await Promise.all([
+      getGBPMetricsSummary(req.params.clientId),
+      getGA4MetricsSummary(req.params.clientId),
+      getGSCMetricsSummary(req.params.clientId),
+    ]);
 
     res.json({
       success: true,
       data: {
-        client: { id: client.id, name: client.name },
+        client: {
+          id: client.id,
+          name: client.name,
+          has_gbp: !!client.gbp_location_id,
+          has_ga4: !!client.ga4_property_id,
+          has_gsc: !!client.gsc_site_url,
+          has_google_connected: client.has_google_connected,
+        },
         gbp,
-        // GA4, GSC, Facebook — populated in Sessions 5 and 6
-        ga4: [],
-        gsc: [],
+        ga4,
+        gsc,
         facebook: [],
       },
     });
@@ -40,12 +52,11 @@ router.get('/:clientId/summary', async (req, res, next) => {
   }
 });
 
-// GET /api/metrics/:clientId/gbp — GBP metrics with optional date range
+// GET /api/metrics/:clientId/gbp
 router.get('/:clientId/gbp', async (req, res, next) => {
   try {
     const client = await checkClientOwnership(req, res);
     if (!client) return;
-
     const metrics = await getGBPMetricsSummary(req.params.clientId);
     res.json({ success: true, data: metrics });
   } catch (err) {
@@ -53,7 +64,31 @@ router.get('/:clientId/gbp', async (req, res, next) => {
   }
 });
 
-// POST /api/metrics/:clientId/sync — trigger immediate GBP fetch for one client
+// GET /api/metrics/:clientId/ga4
+router.get('/:clientId/ga4', async (req, res, next) => {
+  try {
+    const client = await checkClientOwnership(req, res);
+    if (!client) return;
+    const metrics = await getGA4MetricsSummary(req.params.clientId);
+    res.json({ success: true, data: metrics });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/metrics/:clientId/gsc
+router.get('/:clientId/gsc', async (req, res, next) => {
+  try {
+    const client = await checkClientOwnership(req, res);
+    if (!client) return;
+    const metrics = await getGSCMetricsSummary(req.params.clientId);
+    res.json({ success: true, data: metrics });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/metrics/:clientId/sync — trigger immediate sync across all sources
 router.post('/:clientId/sync', async (req, res, next) => {
   try {
     const client = await checkClientOwnership(req, res);
@@ -62,7 +97,6 @@ router.post('/:clientId/sync', async (req, res, next) => {
     const result = await syncClient(req.params.clientId);
     res.json({ success: true, data: result });
   } catch (err) {
-    // Sync errors (bad token, no GBP location set) return 400 not 500
     if (err.message.includes('No Google token') || err.message.includes('gbp_location_id')) {
       return res.status(400).json({ success: false, error: err.message });
     }
@@ -70,20 +104,9 @@ router.post('/:clientId/sync', async (req, res, next) => {
   }
 });
 
-// Stubs for future sessions
-router.get('/:clientId/ga4', async (req, res, next) => {
-  try { res.status(501).json({ success: false, error: 'GA4 coming in Session 5' }); }
-  catch (err) { next(err); }
-});
-
-router.get('/:clientId/gsc', async (req, res, next) => {
-  try { res.status(501).json({ success: false, error: 'GSC coming in Session 5' }); }
-  catch (err) { next(err); }
-});
-
-router.get('/:clientId/facebook', async (req, res, next) => {
-  try { res.status(501).json({ success: false, error: 'Facebook coming in Session 6' }); }
-  catch (err) { next(err); }
+// GET /api/metrics/:clientId/facebook — stub for Session 6
+router.get('/:clientId/facebook', async (req, res) => {
+  res.status(501).json({ success: false, error: 'Facebook coming in Session 6' });
 });
 
 module.exports = router;

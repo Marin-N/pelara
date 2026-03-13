@@ -15,12 +15,14 @@ const styles = {
   title: { fontSize: 24, fontWeight: 700, color: '#fff' },
   addBtn: { background: '#6c63ff', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  modal: { background: '#18181c', border: '1px solid #2a2a2e', borderRadius: 16, padding: '32px 36px', width: 480, maxHeight: '90vh', overflowY: 'auto' },
+  modal: { background: '#18181c', border: '1px solid #2a2a2e', borderRadius: 16, padding: '32px 36px', width: 520, maxHeight: '90vh', overflowY: 'auto' },
   modalTitle: { fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 24 },
+  sectionLabel: { fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 12, marginTop: 20, paddingBottom: 6, borderBottom: '1px solid #2a2a2e' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
   fieldFull: { display: 'flex', flexDirection: 'column', gap: 6, gridColumn: 'span 2', marginBottom: 16 },
   label: { fontSize: 12, color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  labelHint: { fontSize: 11, color: '#444', marginTop: 2 },
   input: { background: '#0f0f11', border: '1px solid #333', color: '#fff', padding: '9px 12px', borderRadius: 8, fontSize: 14, outline: 'none' },
   select: { background: '#0f0f11', border: '1px solid #333', color: '#fff', padding: '9px 12px', borderRadius: 8, fontSize: 14, outline: 'none' },
   actions: { display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' },
@@ -32,6 +34,7 @@ const styles = {
 const EMPTY_FORM = {
   name: '', business_type: '', city: '', country: 'GB',
   phone: '', website_url: '', address: '',
+  gbp_location_id: '', ga4_property_id: '', gsc_site_url: '',
 };
 
 export default function Clients() {
@@ -40,24 +43,23 @@ export default function Clients() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showModal, setShowModal] = useState(false);
   const [googleStatus, setGoogleStatus] = useState('');
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  // Handle redirect back from Google OAuth callback
   useEffect(() => {
     const status = searchParams.get('google');
     if (status === 'connected') {
-      setGoogleStatus('Google connected successfully!');
+      setGoogleStatus('Google connected successfully! You can now sync metrics from the dashboard.');
       refetch();
       setSearchParams({});
-      setTimeout(() => setGoogleStatus(''), 4000);
+      setTimeout(() => setGoogleStatus(''), 5000);
     } else if (status === 'denied' || status === 'error') {
       setGoogleStatus('Google connection failed. Please try again.');
       setSearchParams({});
       setTimeout(() => setGoogleStatus(''), 4000);
     }
   }, [searchParams]);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -82,12 +84,20 @@ export default function Clients() {
   return (
     <div>
       {googleStatus && (
-        <div style={{ background: googleStatus.includes('success') ? '#14532d' : '#3b0a0a', border: `1px solid ${googleStatus.includes('success') ? '#22c55e33' : '#ef444433'}`, color: googleStatus.includes('success') ? '#22c55e' : '#ef4444', padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <div style={{
+          background: googleStatus.includes('success') ? '#14532d' : '#3b0a0a',
+          border: `1px solid ${googleStatus.includes('success') ? '#22c55e33' : '#ef444433'}`,
+          color: googleStatus.includes('success') ? '#22c55e' : '#ef4444',
+          padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13,
+        }}>
           {googleStatus}
         </div>
       )}
+
       <div style={styles.header}>
-        <div style={styles.title}>Clients <span style={{ fontSize: 15, color: '#555', fontWeight: 400 }}>({clients.length})</span></div>
+        <div style={styles.title}>
+          Clients <span style={{ fontSize: 15, color: '#555', fontWeight: 400 }}>({clients.length})</span>
+        </div>
         <button style={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Client</button>
       </div>
 
@@ -98,7 +108,11 @@ export default function Clients() {
           <div style={styles.modal}>
             <div style={styles.modalTitle}>Add New Client</div>
             <form onSubmit={handleSubmit}>
-              <div style={styles.fieldFull}>
+
+              {/* ── Business details ── */}
+              <div style={styles.sectionLabel}>Business Details</div>
+
+              <div style={{ ...styles.fieldFull, marginBottom: 16 }}>
                 <label style={styles.label}>Business Name *</label>
                 <input style={styles.input} name="name" value={form.name} onChange={handleChange} placeholder="e.g. Rapid Locksmith Birmingham" autoFocus />
               </div>
@@ -131,15 +145,36 @@ export default function Clients() {
                 </div>
               </div>
 
-              <div style={{ ...styles.fieldFull, marginTop: 16 }}>
+              <div style={{ ...styles.fieldFull, marginTop: 8 }}>
                 <label style={styles.label}>Website URL</label>
                 <input style={styles.input} name="website_url" value={form.website_url} onChange={handleChange} placeholder="https://example.com" />
+              </div>
+
+              {/* ── Google integration IDs ── */}
+              <div style={styles.sectionLabel}>Google Integration (optional — can set later)</div>
+
+              <div style={styles.fieldFull}>
+                <label style={styles.label}>GBP Location ID</label>
+                <div style={styles.labelHint}>Found in Google Business Profile — e.g. 123456789</div>
+                <input style={styles.input} name="gbp_location_id" value={form.gbp_location_id} onChange={handleChange} placeholder="123456789" />
+              </div>
+
+              <div style={styles.fieldFull}>
+                <label style={styles.label}>GA4 Property ID</label>
+                <div style={styles.labelHint}>Google Analytics 4 — numeric ID only, e.g. 320123456</div>
+                <input style={styles.input} name="ga4_property_id" value={form.ga4_property_id} onChange={handleChange} placeholder="320123456" />
+              </div>
+
+              <div style={styles.fieldFull}>
+                <label style={styles.label}>GSC Site URL</label>
+                <div style={styles.labelHint}>Exact URL as shown in Search Console, e.g. https://example.com/</div>
+                <input style={styles.input} name="gsc_site_url" value={form.gsc_site_url} onChange={handleChange} placeholder="https://example.com/" />
               </div>
 
               {saveError && <div style={styles.error}>{saveError}</div>}
 
               <div style={styles.actions}>
-                <button type="button" style={styles.cancelBtn} onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="button" style={styles.cancelBtn} onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}>Cancel</button>
                 <button type="submit" style={{ ...styles.submitBtn, opacity: saving ? 0.6 : 1 }} disabled={saving}>
                   {saving ? 'Adding...' : 'Add Client'}
                 </button>
