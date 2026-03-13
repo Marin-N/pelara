@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import api from '../services/api.js';
 
@@ -8,22 +8,23 @@ export const useClients = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const token = await getAccessTokenSilently();
-        const res = await api.get('/api/clients', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setClients(res.data.data || []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
-  }, []);
+  const fetchClients = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await api.get('/api/clients', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setClients(res.data.data || []);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [getAccessTokenSilently]);
 
-  return { clients, loading, error };
+  useEffect(() => { fetchClients(); }, [fetchClients]);
+
+  return { clients, loading, error, refetch: fetchClients };
 };
