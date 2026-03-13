@@ -5,7 +5,12 @@ const db = require('../db');
 
 const getClients = async (agencyId) => {
   const result = await db.query(
-    `SELECT * FROM clients WHERE agency_id = $1 ORDER BY name ASC`,
+    `SELECT c.*,
+       CASE WHEN t.client_id IS NOT NULL THEN true ELSE false END AS has_google_connected
+     FROM clients c
+     LEFT JOIN google_oauth_tokens t ON t.client_id = c.id
+     WHERE c.agency_id = $1
+     ORDER BY c.name ASC`,
     [agencyId]
   );
   return result.rows;

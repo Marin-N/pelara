@@ -20,6 +20,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Register daily metrics sync cron (production only — noop in dev)
+require('./jobs/syncMetrics');
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clients'));

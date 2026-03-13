@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { useSearchParams } from 'react-router-dom';
 import { useClients } from '../hooks/useClients.js';
 import ClientList from '../components/Clients/ClientList.jsx';
 import api from '../services/api.js';
@@ -36,7 +37,24 @@ const EMPTY_FORM = {
 export default function Clients() {
   const { clients, loading, error, refetch } = useClients();
   const { getAccessTokenSilently } = useAuth0();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showModal, setShowModal] = useState(false);
+  const [googleStatus, setGoogleStatus] = useState('');
+
+  // Handle redirect back from Google OAuth callback
+  useEffect(() => {
+    const status = searchParams.get('google');
+    if (status === 'connected') {
+      setGoogleStatus('Google connected successfully!');
+      refetch();
+      setSearchParams({});
+      setTimeout(() => setGoogleStatus(''), 4000);
+    } else if (status === 'denied' || status === 'error') {
+      setGoogleStatus('Google connection failed. Please try again.');
+      setSearchParams({});
+      setTimeout(() => setGoogleStatus(''), 4000);
+    }
+  }, [searchParams]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -63,6 +81,11 @@ export default function Clients() {
 
   return (
     <div>
+      {googleStatus && (
+        <div style={{ background: googleStatus.includes('success') ? '#14532d' : '#3b0a0a', border: `1px solid ${googleStatus.includes('success') ? '#22c55e33' : '#ef444433'}`, color: googleStatus.includes('success') ? '#22c55e' : '#ef4444', padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          {googleStatus}
+        </div>
+      )}
       <div style={styles.header}>
         <div style={styles.title}>Clients <span style={{ fontSize: 15, color: '#555', fontWeight: 400 }}>({clients.length})</span></div>
         <button style={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Client</button>
