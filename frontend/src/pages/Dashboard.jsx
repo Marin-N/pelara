@@ -4,6 +4,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { useClients } from '../hooks/useClients.js';
 import MetricCard from '../components/Dashboard/MetricCard.jsx';
 import MetricChart from '../components/Dashboard/MetricChart.jsx';
+import AlertBanner from '../components/Dashboard/AlertBanner.jsx';
 import EmptyState from '../components/Common/EmptyState.jsx';
 import api from '../services/api.js';
 import { calcChange } from '../utils/chartHelpers.js';
@@ -44,6 +45,7 @@ export default function Dashboard() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+  const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
     if (!selectedId && clients.length) setSelectedId(clients[0].id);
@@ -69,7 +71,20 @@ export default function Dashboard() {
     }
   }, [selectedId, getAccessTokenSilently]);
 
-  useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
+  const fetchAlerts = useCallback(async () => {
+    if (!selectedId) return;
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await api.get(`/api/alerts/${selectedId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setAlerts(res.data.data || []);
+    } catch {
+      setAlerts([]);
+    }
+  }, [selectedId, getAccessTokenSilently]);
+
+  useEffect(() => { fetchMetrics(); fetchAlerts(); }, [fetchMetrics, fetchAlerts]);
 
   const handleSync = async () => {
     if (!selectedId || syncing) return;
@@ -97,12 +112,29 @@ export default function Dashboard() {
       if (errors.length) parts.push(`Errors: ${errors.join(' | ')}`);
       setSyncMsg(parts.join(' · ') || 'Sync complete');
       await fetchMetrics();
+      await fetchAlerts();
     } catch (err) {
       setSyncMsg(err.response?.data?.error || 'Sync failed — check Google is connected');
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMsg(''), 6000);
     }
+  };
+
+  const handleDismissAlert = async (alertId) => {
+    try {
+      const token = await getAccessTokenSilently();
+      await api.put(`/api/alerts/${alertId}/read`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    } catch { /* silent */ }
+  };
+
+  const handleDismissAllAlerts = async () => {
+    try {
+      const token = await getAccessTokenSilently();
+      await api.put(`/api/alerts/${selectedId}/read-all`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setAlerts([]);
+    } catch { /* silent */ }
   };
 
   const selectedClient = clients.find((c) => c.id === selectedId);
@@ -194,6 +226,12 @@ export default function Dashboard() {
       )}
 
       {syncMsg && <div style={styles.syncMsg}>{syncMsg}</div>}
+
+      <AlertBanner
+        alerts={alerts}
+        onDismiss={handleDismissAlert}
+        onDismissAll={handleDismissAllAlerts}
+      />
 
       {metricsLoading && <div style={styles.noData}>Loading metrics...</div>}
 

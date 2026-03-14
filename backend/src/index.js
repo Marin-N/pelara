@@ -20,8 +20,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Register daily metrics sync cron (production only — noop in dev)
-require('./jobs/syncMetrics');
+// Register cron jobs (production only — noop in dev)
+require('./jobs/syncMetrics');   // 02:00 UTC — fetch metrics from Google/Facebook APIs
+require('./jobs/checkAlerts');   // 03:00 UTC — check for metric drops, create alerts
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
