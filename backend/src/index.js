@@ -21,8 +21,9 @@ app.get('/health', (req, res) => {
 });
 
 // Register cron jobs (production only — noop in dev)
-require('./jobs/syncMetrics');   // 02:00 UTC — fetch metrics from Google/Facebook APIs
-require('./jobs/checkAlerts');   // 03:00 UTC — check for metric drops, create alerts
+require('./jobs/syncMetrics');      // 02:00 UTC — fetch metrics from Google/Facebook APIs
+require('./jobs/checkAlerts');      // 03:00 UTC — check for metric drops, create alerts
+require('./jobs/generateReports');  // Mon 06:00 UTC — generate and email weekly reports
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -31,6 +32,7 @@ app.use('/api/metrics', require('./routes/metrics'));
 app.use('/api/calls', require('./routes/calls'));
 app.use('/api/competitors', require('./routes/competitors'));
 app.use('/api/alerts', require('./routes/alerts'));
+app.use('/api/reports', require('./routes/reports'));
 
 // 404 handler
 app.use((req, res) => {
