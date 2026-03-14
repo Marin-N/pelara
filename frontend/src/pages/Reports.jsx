@@ -106,7 +106,7 @@ const ReportDetail = ({ report }) => {
           <div style={s.metricsGrid}>
             <MetricBox label="Impressions" thisVal={gsc.this_week.impressions} lastVal={gsc.last_week.impressions} pct={gsc.changes.impressions_pct} />
             <MetricBox label="Clicks" thisVal={gsc.this_week.clicks} lastVal={gsc.last_week.clicks} pct={gsc.changes.clicks_pct} />
-            <MetricBox label="CTR" thisVal={`${gsc.this_week.ctr}%`} lastVal={`${gsc.last_week.ctr}%`} pct={gsc.changes.clicks_pct} />
+            <MetricBox label="CTR" thisVal={gsc.this_week.ctr != null ? `${gsc.this_week.ctr}%` : null} lastVal={gsc.last_week.ctr != null ? `${gsc.last_week.ctr}%` : null} pct={gsc.changes.clicks_pct} />
             <MetricBox label="Avg. Position" thisVal={gsc.this_week.avg_position} lastVal={gsc.last_week.avg_position} pct={gsc.changes.position_pct} higherIsBetter={false} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

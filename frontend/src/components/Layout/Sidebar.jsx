@@ -8,6 +8,7 @@ const nav = [
   { to: '/competitors', label: 'Competitors', icon: '🔭' },
   { to: '/reports', label: 'Reports', icon: '📄' },
   { to: '/alerts', label: 'Alerts', icon: '🔔' },
+  { to: '/billing', label: 'Billing', icon: '💳' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 

@@ -9,6 +9,7 @@ import Calls from './pages/Calls.jsx';
 import Competitors from './pages/Competitors.jsx';
 import Reports from './pages/Reports.jsx';
 import Alerts from './pages/Alerts.jsx';
+import Billing from './pages/Billing.jsx';
 import Settings from './pages/Settings.jsx';
 import CallbackPage from './pages/Callback.jsx';
 import LoadingSpinner from './components/Common/LoadingSpinner.jsx';
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="competitors" element={<Competitors />} />
           <Route path="reports" element={<Reports />} />
           <Route path="alerts" element={<Alerts />} />
+          <Route path="billing" element={<Billing />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
