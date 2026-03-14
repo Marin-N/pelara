@@ -531,7 +531,88 @@ res.status(400).json({ success: false, error: 'message' })
 - Pelara API created in Auth0 with User Access: Authorized
 - Callback URLs include: https://204.168.139.204, https://204.168.139.204/callback
 
-### SESSION 4 — NEXT TARGET: Google OAuth + GBP data
+### SESSION 4 — COMPLETE ✅
+- Google Cloud project created: Pelara
+- 3 APIs enabled: Google Business Profile, Google Analytics Data, Search Console
+- OAuth credentials created (stored in .env on server — never commit):
+  - Client ID: stored in GOOGLE_CLIENT_ID env var
+  - Client Secret: stored in GOOGLE_CLIENT_SECRET env var
+  - Redirect URI: https://204.168.139.204.nip.io/api/auth/google/callback
+- tokenService: OAuth2 client builder + auto token refresh
+- gbpService: live GBP API fetch + DB storage
+- syncMetrics cron job: daily 02:00 UTC
+- GET /api/metrics/:clientId/summary working
+- POST /api/metrics/:clientId/sync working
+- Connect Google button on client cards
+- Dashboard: 4 metric cards + 2 line charts + Sync Now button
+- nip.io domain working: https://204.168.139.204.nip.io
+- NOTE: Google test user must be added in Google Cloud Console before connecting client Google accounts
+
+### IMPORTANT: Before connecting a client Google account
+- Go to Google Cloud Console → OAuth consent screen → Test users
+- Add the Google account email you want to connect
+- Otherwise Google will block the OAuth flow
+
+### SESSION 5 — COMPLETE ✅
+- GA4 service built (ga4Service.js)
+- GSC service built (gscService.js)
+- syncMetrics updated to sync all 3 sources
+- Dashboard has 3 sections: GBP, GA4, GSC with metric cards + charts
+- Client cards show connection status badges
+- Client edit form has GBP Location ID, GA4 Property ID, GSC Site URL fields
+- Vi-keys Search Console data LIVE: 4,988 impressions, 43 clicks, position 19.1
+- GSC site URL format: sc-domain:vi-keys.uk
+- GBP Location ID set: locations/6867640839407828665 (data not showing yet - bug)
+- CTR showing NaN - bug to fix in Session 6
+
+### VI-KEYS CLIENT DATA:
+- GBP Location ID: locations/6867640839407828665
+- GSC Site URL: sc-domain:vi-keys.uk
+- GA4: Not set up (Victoria has no Google Analytics)
+- Google account connected: aterrabuild@gmail.com
+
+### SESSION 6 — COMPLETE ✅
+- CTR NaN fixed: MetricCard now displays pre-formatted strings as-is
+- has_google_connected fixed: getClientById now joins oauth tokens tables
+- Client edit form fixed: Edit button + pre-populated modal on every client card
+- Sync error visibility: per-source error messages shown after sync
+- Facebook OAuth: /api/auth/facebook/url + /api/auth/facebook/callback
+- facebookService.js: page_impressions, page_reach, post_engagements, page_fans, page_fan_adds
+- Facebook included in daily sync cron + manual sync
+- Dashboard: Facebook section with Reach + Engagements charts
+- ClientCard: Connect Facebook button (shown when page ID set but not connected)
+- Add/Edit client form: facebook_page_id field added
+- updateClient: empty strings → NULL (NULLIF) so IDs aren't overwritten with blanks
+- FACEBOOK_REDIRECT_URI added to server .env
+
+### IMPORTANT: Before connecting a client Facebook Page
+- Go to Facebook for Developers → App → Facebook Login → Valid OAuth Redirect URIs
+- Add: https://204.168.139.204.nip.io/api/auth/facebook/callback
+- Set real FACEBOOK_APP_ID and FACEBOOK_APP_SECRET in /var/www/pelara/backend/.env
+- Edit the client → add their Facebook Page ID (numeric) → then click Connect Facebook
+
+### SESSION 8 (ALERTS) — COMPLETE ✅
+- alertsService.js: week-over-week metric drop detection
+  Yellow: 10-20% drop | Orange: 20-40% drop | Red: 40%+ drop
+  Covers GSC (impressions + clicks), GBP (views + phone + website), GA4 (sessions)
+  Deduplication: one alert per metric type per client per day
+- checkAlerts.js: daily cron at 03:00 UTC (runs after metrics sync at 02:00 UTC)
+- routes/alerts.js:
+  GET /:clientId — fetch unread alerts
+  GET /:clientId?includeRead=true — full history
+  PUT /:alertId/read — mark one alert read
+  PUT /:clientId/read-all — mark all unread read
+  POST /:clientId/check — manually trigger alert check (for testing)
+- AlertBanner on dashboard: severity-coded (red/orange/yellow), per-alert dismiss, Mark all read
+- Alerts page: full alert history, unread/all tabs, Check Now button, dismiss controls
+- Alerts auto-refresh after Sync Now on dashboard
+
+### SESSION 9 — NEXT TARGET: Automated weekly reports
+- Weekly PDF report per client (every Monday 07:00 UTC)
+- Pull stored metrics for last 7 days + previous 7 days for comparison
+- Include: GSC, GBP, GA4, Facebook summary + any active alerts
+- Auto-email to agency owner via Resend
+- Report stored in DB + downloadable from Reports page
 
 ### Session 2 target:
 - [ ] Auth0 integration — login, callback, logout, get current user
