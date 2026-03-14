@@ -4,6 +4,7 @@ const { getClientById } = require('../services/clientService');
 const { getGBPMetricsSummary } = require('../services/gbpService');
 const { getGA4MetricsSummary } = require('../services/ga4Service');
 const { getGSCMetricsSummary } = require('../services/gscService');
+const { getFacebookMetricsSummary } = require('../services/facebookService');
 const { syncClient } = require('../jobs/syncMetrics');
 
 router.use(requireAuth, attachUser);
@@ -24,10 +25,11 @@ router.get('/:clientId/summary', async (req, res, next) => {
     const client = await checkClientOwnership(req, res);
     if (!client) return;
 
-    const [gbp, ga4, gsc] = await Promise.all([
+    const [gbp, ga4, gsc, facebook] = await Promise.all([
       getGBPMetricsSummary(req.params.clientId),
       getGA4MetricsSummary(req.params.clientId),
       getGSCMetricsSummary(req.params.clientId),
+      getFacebookMetricsSummary(req.params.clientId),
     ]);
 
     res.json({
@@ -39,12 +41,14 @@ router.get('/:clientId/summary', async (req, res, next) => {
           has_gbp: !!client.gbp_location_id,
           has_ga4: !!client.ga4_property_id,
           has_gsc: !!client.gsc_site_url,
+          has_facebook: !!client.facebook_page_id,
           has_google_connected: client.has_google_connected,
+          has_facebook_connected: client.has_facebook_connected,
         },
         gbp,
         ga4,
         gsc,
-        facebook: [],
+        facebook,
       },
     });
   } catch (err) {
@@ -104,9 +108,16 @@ router.post('/:clientId/sync', async (req, res, next) => {
   }
 });
 
-// GET /api/metrics/:clientId/facebook — stub for Session 6
-router.get('/:clientId/facebook', async (req, res) => {
-  res.status(501).json({ success: false, error: 'Facebook coming in Session 6' });
+// GET /api/metrics/:clientId/facebook
+router.get('/:clientId/facebook', async (req, res, next) => {
+  try {
+    const client = await checkClientOwnership(req, res);
+    if (!client) return;
+    const metrics = await getFacebookMetricsSummary(req.params.clientId);
+    res.json({ success: true, data: metrics });
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

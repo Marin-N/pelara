@@ -3,6 +3,7 @@ const db = require('../db');
 const { fetchGBPMetrics } = require('../services/gbpService');
 const { fetchGA4Metrics } = require('../services/ga4Service');
 const { fetchGSCMetrics } = require('../services/gscService');
+const { fetchFacebookMetrics } = require('../services/facebookService');
 const logger = require('../utils/logger');
 
 /**
@@ -14,10 +15,14 @@ const syncAllClients = async () => {
 
   // Only clients with a Google token connected qualify for sync
   const result = await db.query(
-    `SELECT c.id, c.name, c.gbp_location_id, c.ga4_property_id, c.gsc_site_url
+    `SELECT DISTINCT c.id, c.name, c.gbp_location_id, c.ga4_property_id, c.gsc_site_url, c.facebook_page_id,
+       CASE WHEN g.client_id IS NOT NULL THEN true ELSE false END AS has_google,
+       CASE WHEN f.client_id IS NOT NULL THEN true ELSE false END AS has_facebook
      FROM clients c
-     INNER JOIN google_oauth_tokens t ON t.client_id = c.id
-     WHERE c.is_active = true`
+     LEFT JOIN google_oauth_tokens g ON g.client_id = c.id
+     LEFT JOIN facebook_oauth_tokens f ON f.client_id = c.id
+     WHERE c.is_active = true
+       AND (g.client_id IS NOT NULL OR f.client_id IS NOT NULL)`
   );
 
   const clients = result.rows;
@@ -26,10 +31,10 @@ const syncAllClients = async () => {
   const results = { success: [], failed: [] };
 
   for (const client of clients) {
-    const clientResults = { id: client.id, name: client.name, gbp: null, ga4: null, gsc: null };
+    const clientResults = { id: client.id, name: client.name, gbp: null, ga4: null, gsc: null, facebook: null };
 
-    // GBP sync — only if location ID is set
-    if (client.gbp_location_id) {
+    // GBP sync — only if Google connected and location ID is set
+    if (client.has_google && client.gbp_location_id) {
       try {
         const rows = await fetchGBPMetrics(client.id);
         clientResults.gbp = rows.length;
@@ -40,8 +45,8 @@ const syncAllClients = async () => {
       }
     }
 
-    // GA4 sync — only if property ID is set
-    if (client.ga4_property_id) {
+    // GA4 sync — only if Google connected and property ID is set
+    if (client.has_google && client.ga4_property_id) {
       try {
         const rows = await fetchGA4Metrics(client.id);
         clientResults.ga4 = rows.length;
@@ -52,8 +57,8 @@ const syncAllClients = async () => {
       }
     }
 
-    // GSC sync — only if site URL is set
-    if (client.gsc_site_url) {
+    // GSC sync — only if Google connected and site URL is set
+    if (client.has_google && client.gsc_site_url) {
       try {
         const rows = await fetchGSCMetrics(client.id);
         clientResults.gsc = rows.length;
@@ -64,8 +69,20 @@ const syncAllClients = async () => {
       }
     }
 
+    // Facebook sync — only if Facebook connected and page ID is set
+    if (client.has_facebook && client.facebook_page_id) {
+      try {
+        const rows = await fetchFacebookMetrics(client.id);
+        clientResults.facebook = rows.length;
+        logger.info('Facebook sync OK', { clientId: client.id });
+      } catch (err) {
+        clientResults.facebook = `error: ${err.message}`;
+        logger.error('Facebook sync failed', { clientId: client.id, error: err.message });
+      }
+    }
+
     // A client is a success if at least one source synced without error
-    const anyError = [clientResults.gbp, clientResults.ga4, clientResults.gsc]
+    const anyError = [clientResults.gbp, clientResults.ga4, clientResults.gsc, clientResults.facebook]
       .some((v) => typeof v === 'string' && v.startsWith('error'));
 
     if (anyError) {
@@ -85,14 +102,14 @@ const syncAllClients = async () => {
  */
 const syncClient = async (clientId) => {
   const clientResult = await db.query(
-    `SELECT id, gbp_location_id, ga4_property_id, gsc_site_url
+    `SELECT id, gbp_location_id, ga4_property_id, gsc_site_url, facebook_page_id
      FROM clients WHERE id = $1`,
     [clientId]
   );
   const client = clientResult.rows[0];
   if (!client) throw new Error(`Client ${clientId} not found`);
 
-  const result = { gbp: null, ga4: null, gsc: null };
+  const result = { gbp: null, ga4: null, gsc: null, facebook: null };
 
   if (client.gbp_location_id) {
     try {
@@ -122,6 +139,16 @@ const syncClient = async (clientId) => {
     } catch (err) {
       result.gsc = `error: ${err.message}`;
       logger.error('GSC sync failed for manual sync', { clientId, error: err.message });
+    }
+  }
+
+  if (client.facebook_page_id) {
+    try {
+      const rows = await fetchFacebookMetrics(clientId);
+      result.facebook = rows.length;
+    } catch (err) {
+      result.facebook = `error: ${err.message}`;
+      logger.error('Facebook sync failed for manual sync', { clientId, error: err.message });
     }
   }
 

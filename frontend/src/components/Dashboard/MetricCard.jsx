@@ -17,7 +17,7 @@ export default function MetricCard({ label, value, change, changeLabel }) {
   return (
     <div style={styles.card}>
       <div style={styles.label}>{label}</div>
-      <div style={styles.value}>{formatNumber(value)}</div>
+      <div style={styles.value}>{typeof value === 'string' ? value : formatNumber(value)}</div>
       {change != null && (
         <div style={{ ...styles.change, color: changeColor }}>
           {changeIcon} {Math.abs(change).toFixed(1)}% {changeLabel || 'vs last period'}

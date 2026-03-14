@@ -81,11 +81,21 @@ export default function Dashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const d = res.data.data;
+      const ok = [];
+      const errors = [];
+      const check = (key, label) => {
+        if (d[key] == null) return;
+        if (String(d[key]).startsWith('error')) errors.push(`${label}: ${String(d[key]).replace('error: ', '')}`);
+        else ok.push(`${label}: ${d[key]}d`);
+      };
+      check('gbp', 'GBP');
+      check('ga4', 'GA4');
+      check('gsc', 'GSC');
+      check('facebook', 'FB');
       const parts = [];
-      if (d.gbp != null && !String(d.gbp).startsWith('error')) parts.push(`GBP: ${d.gbp}d`);
-      if (d.ga4 != null && !String(d.ga4).startsWith('error')) parts.push(`GA4: ${d.ga4}d`);
-      if (d.gsc != null && !String(d.gsc).startsWith('error')) parts.push(`GSC: ${d.gsc}d`);
-      setSyncMsg(parts.length ? `Synced — ${parts.join(', ')}` : 'Sync complete');
+      if (ok.length) parts.push(`Synced — ${ok.join(', ')}`);
+      if (errors.length) parts.push(`Errors: ${errors.join(' | ')}`);
+      setSyncMsg(parts.join(' · ') || 'Sync complete');
       await fetchMetrics();
     } catch (err) {
       setSyncMsg(err.response?.data?.error || 'Sync failed — check Google is connected');
@@ -99,6 +109,7 @@ export default function Dashboard() {
   const gbp = metrics?.gbp || [];
   const ga4 = metrics?.ga4 || [];
   const gsc = metrics?.gsc || [];
+  const fb = metrics?.facebook || [];
   const clientInfo = metrics?.client || {};
 
   const gbpChartData = gbp.map((r) => ({
@@ -118,6 +129,12 @@ export default function Dashboard() {
     date: r.date,
     impressions: r.impressions || 0,
     clicks: r.clicks || 0,
+  }));
+
+  const fbChartData = fb.map((r) => ({
+    date: r.date,
+    reach: r.page_reach || 0,
+    engagements: r.post_engagements || 0,
   }));
 
   const avgPosition = gsc.length
@@ -169,6 +186,9 @@ export default function Dashboard() {
           </span>
           <span style={styles.dot(clientInfo.has_gsc)}>
             {clientInfo.has_gsc ? '●' : '○'} Search Console
+          </span>
+          <span style={styles.dot(clientInfo.has_facebook_connected)}>
+            {clientInfo.has_facebook_connected ? '●' : '○'} Facebook
           </span>
         </div>
       )}
@@ -245,8 +265,30 @@ export default function Dashboard() {
             </>
           ) : null}
 
+          {/* ── Facebook Section ───────────────────────────── */}
+          {fb.length > 0 ? (
+            <>
+              <div style={styles.sectionTitle}>Facebook Page</div>
+              <div style={styles.grid}>
+                <MetricCard label="Page Reach (30d)" value={sumTotal(fb, 'page_reach')} change={halfTrend(fb, 'page_reach')} />
+                <MetricCard label="Post Engagements" value={sumTotal(fb, 'post_engagements')} change={halfTrend(fb, 'post_engagements')} />
+                <MetricCard label="New Followers" value={sumTotal(fb, 'new_followers')} change={halfTrend(fb, 'new_followers')} />
+                <MetricCard label="Total Followers" value={fb[fb.length - 1]?.followers_count || 0} change={null} />
+              </div>
+              <div style={styles.chartGrid}>
+                <MetricChart data={fbChartData} dataKey="reach" label="Page Reach — last 30 days" color="#3b82f6" />
+                <MetricChart data={fbChartData} dataKey="engagements" label="Post Engagements — last 30 days" color="#f97316" />
+              </div>
+            </>
+          ) : clientInfo.has_facebook_connected ? (
+            <>
+              <div style={styles.sectionTitle}>Facebook Page</div>
+              <div style={styles.noData}>No Facebook data yet — click "Sync Now" to fetch</div>
+            </>
+          ) : null}
+
           {/* No data at all */}
-          {!gbp.length && !ga4.length && !gsc.length && !clientInfo.has_gbp && !clientInfo.has_ga4 && !clientInfo.has_gsc && (
+          {!gbp.length && !ga4.length && !gsc.length && !fb.length && !clientInfo.has_gbp && !clientInfo.has_ga4 && !clientInfo.has_gsc && !clientInfo.has_facebook_connected && (
             <div style={styles.noData}>
               {clientInfo.has_google_connected
                 ? 'Add GA4 Property ID, GSC Site URL, or GBP Location ID to this client to start seeing metrics'

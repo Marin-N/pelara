@@ -29,39 +29,93 @@ const styles = {
   cancelBtn: { background: 'none', border: '1px solid #333', color: '#888', padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 14 },
   submitBtn: { background: '#6c63ff', color: '#fff', border: 'none', padding: '9px 20px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 },
   error: { color: '#ef4444', fontSize: 13, marginTop: 8 },
+  statusBanner: (ok) => ({
+    background: ok ? '#14532d' : '#3b0a0a',
+    border: `1px solid ${ok ? '#22c55e33' : '#ef444433'}`,
+    color: ok ? '#22c55e' : '#ef4444',
+    padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13,
+  }),
 };
 
 const EMPTY_FORM = {
   name: '', business_type: '', city: '', country: 'GB',
   phone: '', website_url: '', address: '',
   gbp_location_id: '', ga4_property_id: '', gsc_site_url: '',
+  facebook_page_id: '',
 };
 
 export default function Clients() {
   const { clients, loading, error, refetch } = useClients();
   const { getAccessTokenSilently } = useAuth0();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [showModal, setShowModal] = useState(false);
-  const [googleStatus, setGoogleStatus] = useState('');
+  const [editingClient, setEditingClient] = useState(null); // null = adding, object = editing
+  const [statusMsg, setStatusMsg] = useState('');
+  const [statusOk, setStatusOk] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  // Handle OAuth callbacks (Google + Facebook) redirected back from the server
   useEffect(() => {
-    const status = searchParams.get('google');
-    if (status === 'connected') {
-      setGoogleStatus('Google connected successfully! You can now sync metrics from the dashboard.');
+    const google = searchParams.get('google');
+    const facebook = searchParams.get('facebook');
+
+    if (google === 'connected') {
+      showStatus('Google connected successfully! Click Sync Now on the dashboard to fetch data.', true);
       refetch();
-      setSearchParams({});
-      setTimeout(() => setGoogleStatus(''), 5000);
-    } else if (status === 'denied' || status === 'error') {
-      setGoogleStatus('Google connection failed. Please try again.');
-      setSearchParams({});
-      setTimeout(() => setGoogleStatus(''), 4000);
+    } else if (google === 'denied' || google === 'error' || google === 'expired') {
+      showStatus('Google connection failed. Please try again.', false);
     }
+
+    if (facebook === 'connected') {
+      showStatus('Facebook connected successfully! Click Sync Now on the dashboard to fetch data.', true);
+      refetch();
+    } else if (facebook === 'denied') {
+      showStatus('Facebook connection was cancelled.', false);
+    } else if (facebook === 'page_not_found') {
+      showStatus('Facebook connected but the Page ID on this client wasn\'t found in your Facebook account. Check the Page ID is correct.', false);
+    } else if (facebook === 'error' || facebook === 'expired') {
+      showStatus('Facebook connection failed. Please try again.', false);
+    }
+
+    if (google || facebook) setSearchParams({});
   }, [searchParams]);
 
+  const showStatus = (msg, ok) => {
+    setStatusMsg(msg);
+    setStatusOk(ok);
+    setTimeout(() => setStatusMsg(''), 6000);
+  };
+
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  const openAdd = () => {
+    setEditingClient(null);
+    setForm(EMPTY_FORM);
+    setSaveError('');
+    setShowModal(true);
+  };
+
+  const openEdit = (client) => {
+    setEditingClient(client);
+    setForm({
+      name: client.name || '',
+      business_type: client.business_type || '',
+      city: client.city || '',
+      country: client.country || 'GB',
+      phone: client.phone || '',
+      website_url: client.website_url || '',
+      address: client.address || '',
+      gbp_location_id: client.gbp_location_id || '',
+      ga4_property_id: client.ga4_property_id || '',
+      gsc_site_url: client.gsc_site_url || '',
+      facebook_page_id: client.facebook_page_id || '',
+    });
+    setSaveError('');
+    setShowModal(true);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,43 +124,47 @@ export default function Clients() {
     setSaveError('');
     try {
       const token = await getAccessTokenSilently();
-      await api.post('/api/clients', form, { headers: { Authorization: `Bearer ${token}` } });
+      if (editingClient) {
+        await api.put(`/api/clients/${editingClient.id}`, form, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        await api.post('/api/clients', form, { headers: { Authorization: `Bearer ${token}` } });
+      }
       setShowModal(false);
       setForm(EMPTY_FORM);
+      setEditingClient(null);
       refetch();
     } catch (err) {
-      setSaveError(err.response?.data?.error || 'Failed to create client');
+      setSaveError(err.response?.data?.error || `Failed to ${editingClient ? 'update' : 'create'} client`);
     } finally {
       setSaving(false);
     }
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setForm(EMPTY_FORM);
+    setEditingClient(null);
+  };
+
   return (
     <div>
-      {googleStatus && (
-        <div style={{
-          background: googleStatus.includes('success') ? '#14532d' : '#3b0a0a',
-          border: `1px solid ${googleStatus.includes('success') ? '#22c55e33' : '#ef444433'}`,
-          color: googleStatus.includes('success') ? '#22c55e' : '#ef4444',
-          padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13,
-        }}>
-          {googleStatus}
-        </div>
+      {statusMsg && (
+        <div style={styles.statusBanner(statusOk)}>{statusMsg}</div>
       )}
 
       <div style={styles.header}>
         <div style={styles.title}>
           Clients <span style={{ fontSize: 15, color: '#555', fontWeight: 400 }}>({clients.length})</span>
         </div>
-        <button style={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Client</button>
+        <button style={styles.addBtn} onClick={openAdd}>+ Add Client</button>
       </div>
 
-      <ClientList clients={clients} loading={loading} error={error} />
+      <ClientList clients={clients} loading={loading} error={error} onEdit={openEdit} />
 
       {showModal && (
-        <div style={styles.overlay} onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
+        <div style={styles.overlay} onClick={(e) => e.target === e.currentTarget && closeModal()}>
           <div style={styles.modal}>
-            <div style={styles.modalTitle}>Add New Client</div>
+            <div style={styles.modalTitle}>{editingClient ? `Edit — ${editingClient.name}` : 'Add New Client'}</div>
             <form onSubmit={handleSubmit}>
 
               {/* ── Business details ── */}
@@ -155,8 +213,8 @@ export default function Clients() {
 
               <div style={styles.fieldFull}>
                 <label style={styles.label}>GBP Location ID</label>
-                <div style={styles.labelHint}>Found in Google Business Profile — e.g. 123456789</div>
-                <input style={styles.input} name="gbp_location_id" value={form.gbp_location_id} onChange={handleChange} placeholder="123456789" />
+                <div style={styles.labelHint}>Found in Google Business Profile — numeric ID only, e.g. 6867640839407828665</div>
+                <input style={styles.input} name="gbp_location_id" value={form.gbp_location_id} onChange={handleChange} placeholder="6867640839407828665" />
               </div>
 
               <div style={styles.fieldFull}>
@@ -167,16 +225,25 @@ export default function Clients() {
 
               <div style={styles.fieldFull}>
                 <label style={styles.label}>GSC Site URL</label>
-                <div style={styles.labelHint}>Exact URL as shown in Search Console, e.g. https://example.com/</div>
-                <input style={styles.input} name="gsc_site_url" value={form.gsc_site_url} onChange={handleChange} placeholder="https://example.com/" />
+                <div style={styles.labelHint}>Exact URL as shown in Search Console, e.g. sc-domain:example.com or https://example.com/</div>
+                <input style={styles.input} name="gsc_site_url" value={form.gsc_site_url} onChange={handleChange} placeholder="sc-domain:example.com" />
+              </div>
+
+              {/* ── Facebook integration ── */}
+              <div style={styles.sectionLabel}>Facebook Integration (optional — can set later)</div>
+
+              <div style={styles.fieldFull}>
+                <label style={styles.label}>Facebook Page ID</label>
+                <div style={styles.labelHint}>Numeric Page ID from Facebook — found in Page settings → About, or in the URL. Set this before clicking "Connect Facebook".</div>
+                <input style={styles.input} name="facebook_page_id" value={form.facebook_page_id} onChange={handleChange} placeholder="123456789012345" />
               </div>
 
               {saveError && <div style={styles.error}>{saveError}</div>}
 
               <div style={styles.actions}>
-                <button type="button" style={styles.cancelBtn} onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}>Cancel</button>
+                <button type="button" style={styles.cancelBtn} onClick={closeModal}>Cancel</button>
                 <button type="submit" style={{ ...styles.submitBtn, opacity: saving ? 0.6 : 1 }} disabled={saving}>
-                  {saving ? 'Adding...' : 'Add Client'}
+                  {saving ? (editingClient ? 'Saving...' : 'Adding...') : (editingClient ? 'Save Changes' : 'Add Client')}
                 </button>
               </div>
             </form>
