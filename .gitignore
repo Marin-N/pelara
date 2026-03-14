@@ -10,3 +10,4 @@ dist/
 .DS_Store
 Thumbs.db
 .claude/
+PELARA_MASTER_CONTEXT.md
