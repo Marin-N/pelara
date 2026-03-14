@@ -50,7 +50,7 @@ const buildEmailHTML = (report) => {
     metricsTable += sectionHeader('Google Search Console', '🔍');
     metricsTable += metricRow('Impressions', gsc.this_week.impressions, gsc.last_week.impressions, gsc.changes.impressions_pct);
     metricsTable += metricRow('Search Clicks', gsc.this_week.clicks, gsc.last_week.clicks, gsc.changes.clicks_pct);
-    metricsTable += metricRow('Click-Through Rate', `${gsc.this_week.ctr}%`, `${gsc.last_week.ctr}%`, gsc.changes.clicks_pct);
+    metricsTable += metricRow('Click-Through Rate', gsc.this_week.ctr != null ? `${gsc.this_week.ctr}%` : '—', gsc.last_week.ctr != null ? `${gsc.last_week.ctr}%` : '—', gsc.changes.ctr_pct ?? gsc.changes.clicks_pct);
     metricsTable += metricRow('Avg. Position', gsc.this_week.avg_position, gsc.last_week.avg_position, gsc.changes.position_pct, false);
   }
 
