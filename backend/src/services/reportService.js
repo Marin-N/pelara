@@ -51,6 +51,10 @@ const buildGSCSection = async (clientId) => {
     changes: {
       impressions_pct: fmtPct(pctChange(thisImpressions, lastImpressions)),
       clicks_pct: fmtPct(pctChange(thisClicks, lastClicks)),
+      ctr_pct: fmtPct(pctChange(
+        thisImpressions > 0 ? thisClicks / thisImpressions * 100 : 0,
+        lastImpressions > 0 ? lastClicks / lastImpressions * 100 : 0,
+      )),
       // Positive position_pct = ranking got WORSE (higher number = lower rank)
       position_pct: fmtPct(pctChange(thisPosition, lastPosition)),
     },

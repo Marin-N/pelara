@@ -11,10 +11,10 @@ app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 
 // Stripe webhook needs the raw request body for signature verification.
 // Capture it BEFORE express.json() parses it away.
-app.use('/api/billing/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
-  req.rawBody = req.body; // Buffer — passed to stripe.webhooks.constructEvent
-  next();
-});
+const captureRawBody = express.raw({ type: 'application/json' });
+const storeRawBody = (req, res, next) => { req.rawBody = req.body; next(); };
+app.use('/api/stripe/webhook', captureRawBody, storeRawBody);
+app.use('/api/billing/webhook', captureRawBody, storeRawBody);
 
 app.use(express.json());
 
@@ -41,7 +41,9 @@ app.use('/api/calls', require('./routes/calls'));
 app.use('/api/competitors', require('./routes/competitors'));
 app.use('/api/alerts', require('./routes/alerts'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/stripe', require('./routes/stripe'));
 app.use('/api/billing', require('./routes/billing'));
+app.use('/api/settings', require('./routes/settings'));
 
 // 404 handler
 app.use((req, res) => {

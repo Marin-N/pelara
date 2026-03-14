@@ -1,4 +1,5 @@
 const db = require('../db');
+const { getAgencyClientsLimit } = require('./stripeService');
 
 // Every query filters by agency_id to prevent cross-agency data leakage.
 // The agency_id always comes from the authenticated user's DB record, never from request params.
@@ -38,6 +39,21 @@ const createClient = async (agencyId, data) => {
     phone, website_url, gbp_location_id, ga4_property_id,
     gsc_site_url, facebook_page_id,
   } = data;
+
+  // Enforce plan client limits
+  const limit = await getAgencyClientsLimit(agencyId);
+  if (limit !== null) {
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM clients WHERE agency_id = $1 AND is_active = true`,
+      [agencyId]
+    );
+    const current = parseInt(countResult.rows[0].count, 10);
+    if (current >= limit) {
+      const err = new Error(`Upgrade your plan to add more clients. Your current plan allows up to ${limit} client${limit === 1 ? '' : 's'}.`);
+      err.statusCode = 402;
+      throw err;
+    }
+  }
 
   const result = await db.query(
     `INSERT INTO clients

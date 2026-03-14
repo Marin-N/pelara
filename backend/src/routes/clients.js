@@ -26,6 +26,9 @@ router.post('/', async (req, res, next) => {
     const client = await createClient(req.user.agency_id, req.body);
     res.status(201).json({ success: true, data: client });
   } catch (err) {
+    if (err.statusCode === 402) {
+      return res.status(402).json({ success: false, error: err.message });
+    }
     next(err);
   }
 });
