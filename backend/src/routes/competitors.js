@@ -6,6 +6,7 @@ const {
   removeCompetitor,
   updateCompetitorMetrics,
   refreshCompetitorMetrics,
+  scanCompetitors,
   getCompetitorHistory,
 } = require('../services/competitorService');
 
@@ -58,12 +59,26 @@ router.put('/:competitorId/metrics', async (req, res, next) => {
   }
 });
 
-// POST /api/competitors/:clientId/refresh — auto-fetch metrics via Places API
+// POST /api/competitors/:clientId/refresh — auto-fetch metrics via Places API for existing competitors
 router.post('/:clientId/refresh', async (req, res, next) => {
   try {
     const result = await refreshCompetitorMetrics(req.params.clientId, req.user.agency_id);
     res.json({ success: true, data: result });
   } catch (err) {
+    if (err.message.includes('not found')) return res.status(404).json({ success: false, error: err.message });
+    next(err);
+  }
+});
+
+// POST /api/competitors/:clientId/scan — search Google Places for top competitors by business type + city
+router.post('/:clientId/scan', async (req, res, next) => {
+  try {
+    const result = await scanCompetitors(req.params.clientId, req.user.agency_id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    if (err.message.includes('not configured')) {
+      return res.status(503).json({ success: false, error: err.message });
+    }
     if (err.message.includes('not found')) return res.status(404).json({ success: false, error: err.message });
     next(err);
   }

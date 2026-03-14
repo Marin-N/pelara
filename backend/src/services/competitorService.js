@@ -176,11 +176,97 @@ const getCompetitorHistory = async (competitorId, agencyId, days = 30) => {
   return result.rows;
 };
 
+// ── Google Places Text Search scan ────────────────────────────────────────────
+
+/**
+ * Search Google Places for top competitors near a client's location.
+ * Uses Places Text Search API — requires GOOGLE_PLACES_API_KEY (a server API key,
+ * not the OAuth client ID). Add it to .env to enable scanning.
+ *
+ * Finds up to 5 businesses matching the client's business_type in their city,
+ * upserts them as competitors, and records today's metrics.
+ */
+const scanCompetitors = async (clientId, agencyId) => {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey || apiKey === 'xxx') {
+    throw new Error('GOOGLE_PLACES_API_KEY not configured — add a server API key to .env to enable competitor scanning');
+  }
+
+  // Get client details for search query
+  const clientResult = await db.query(
+    `SELECT name, city, business_type FROM clients WHERE id = $1 AND agency_id = $2`,
+    [clientId, agencyId]
+  );
+  const client = clientResult.rows[0];
+  if (!client) throw new Error('Client not found');
+
+  const city = client.city || '';
+  const type = client.business_type || 'local business';
+  const query = `${type} in ${city}`;
+
+  logger.info('Scanning competitors via Places API', { clientId, query });
+
+  // Text Search
+  const searchRes = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
+    params: { query, key: apiKey },
+    timeout: 10000,
+  });
+
+  const places = (searchRes.data.results || []).slice(0, 6); // grab 6, skip exact name match
+  const today = new Date().toISOString().split('T')[0];
+  const added = [];
+
+  for (const place of places) {
+    // Skip if same name as client (it's not a competitor)
+    if (place.name.toLowerCase() === client.name.toLowerCase()) continue;
+    if (added.length >= 5) break;
+
+    // Upsert competitor — match on gbp_place_id to avoid duplicates
+    const existing = await db.query(
+      `SELECT id FROM competitors WHERE client_id = $1 AND gbp_place_id = $2`,
+      [clientId, place.place_id]
+    );
+
+    let competitorId;
+    if (existing.rows.length) {
+      competitorId = existing.rows[0].id;
+      // Reactivate if previously removed
+      await db.query(`UPDATE competitors SET is_active = true WHERE id = $1`, [competitorId]);
+    } else {
+      const ins = await db.query(
+        `INSERT INTO competitors (client_id, name, address, gbp_place_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [clientId, place.name, place.formatted_address || null, place.place_id]
+      );
+      competitorId = ins.rows[0].id;
+    }
+
+    // Save today's metrics
+    if (place.rating || place.user_ratings_total) {
+      await db.query(
+        `INSERT INTO competitor_metrics (competitor_id, date, reviews_count, reviews_average)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (competitor_id, date) DO UPDATE SET
+           reviews_count = EXCLUDED.reviews_count,
+           reviews_average = EXCLUDED.reviews_average`,
+        [competitorId, today, place.user_ratings_total || 0, place.rating || 0]
+      );
+    }
+
+    added.push({ id: competitorId, name: place.name, rating: place.rating, reviews: place.user_ratings_total });
+  }
+
+  logger.info('Competitor scan complete', { clientId, found: added.length });
+  return { found: added.length, competitors: added };
+};
+
 module.exports = {
   getCompetitors,
   addCompetitor,
   removeCompetitor,
   updateCompetitorMetrics,
   refreshCompetitorMetrics,
+  scanCompetitors,
   getCompetitorHistory,
 };

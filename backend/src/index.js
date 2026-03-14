@@ -44,6 +44,8 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/stripe', require('./routes/stripe'));
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/posts', require('./routes/posts'));
+app.use('/api/email', require('./routes/email'));
 
 // 404 handler
 app.use((req, res) => {

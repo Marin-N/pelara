@@ -23,6 +23,16 @@ const styles = {
   syncMsg: { background: '#1a1a2e', border: '1px solid #6c63ff33', color: '#a5a0ff', padding: '8px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 },
   connectionDots: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' },
   dot: (on) => ({ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: on ? '#22c55e' : '#555' }),
+  postCard: { background: '#18181c', border: '1px solid #2a2a2e', borderRadius: 10, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  postBadge: (status) => ({
+    fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.5px',
+    background: status === 'scheduled' ? '#1a1a2e' : status === 'published' ? '#052e16' : '#2d1b1b',
+    color: status === 'scheduled' ? '#a5a0ff' : status === 'published' ? '#22c55e' : '#f87171',
+  }),
+  postInput: { background: '#18181c', border: '1px solid #333', color: '#fff', padding: '10px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 80, fontFamily: 'inherit' },
+  postInputSm: { background: '#18181c', border: '1px solid #333', color: '#fff', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' },
+  postSubmit: { background: '#6c63ff', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 },
+  postMsg: (ok) => ({ fontSize: 12, padding: '6px 12px', borderRadius: 6, background: ok ? '#052e16' : '#2d1b1b', color: ok ? '#22c55e' : '#f87171' }),
 };
 
 const sumTotal = (rows, key) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
@@ -46,6 +56,10 @@ export default function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [alerts, setAlerts] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [postForm, setPostForm] = useState({ content: '', image_url: '', scheduled_for: '' });
+  const [postSubmitting, setPostSubmitting] = useState(false);
+  const [postMsg, setPostMsg] = useState('');
 
   useEffect(() => {
     if (!selectedId && clients.length) setSelectedId(clients[0].id);
@@ -84,7 +98,20 @@ export default function Dashboard() {
     }
   }, [selectedId, getAccessTokenSilently]);
 
-  useEffect(() => { fetchMetrics(); fetchAlerts(); }, [fetchMetrics, fetchAlerts]);
+  const fetchPosts = useCallback(async () => {
+    if (!selectedId) return;
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await api.get(`/api/posts/${selectedId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPosts(res.data.data || []);
+    } catch {
+      setPosts([]);
+    }
+  }, [selectedId, getAccessTokenSilently]);
+
+  useEffect(() => { fetchMetrics(); fetchAlerts(); fetchPosts(); }, [fetchMetrics, fetchAlerts, fetchPosts]);
 
   const handleSync = async () => {
     if (!selectedId || syncing) return;
@@ -126,6 +153,38 @@ export default function Dashboard() {
       const token = await getAccessTokenSilently();
       await api.put(`/api/alerts/${alertId}/read`, {}, { headers: { Authorization: `Bearer ${token}` } });
       setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    } catch { /* silent */ }
+  };
+
+  const handleSchedulePost = async (e) => {
+    e.preventDefault();
+    if (!postForm.content || !postForm.scheduled_for) return;
+    setPostSubmitting(true);
+    setPostMsg('');
+    try {
+      const token = await getAccessTokenSilently();
+      await api.post(`/api/posts/${selectedId}/schedule`, {
+        content: postForm.content,
+        image_url: postForm.image_url || undefined,
+        scheduled_for: postForm.scheduled_for,
+        platform: 'gbp',
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setPostForm({ content: '', image_url: '', scheduled_for: '' });
+      setPostMsg('Post scheduled successfully');
+      await fetchPosts();
+      setTimeout(() => setPostMsg(''), 4000);
+    } catch (err) {
+      setPostMsg(err.response?.data?.error || 'Failed to schedule post');
+    } finally {
+      setPostSubmitting(false);
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    try {
+      const token = await getAccessTokenSilently();
+      await api.delete(`/api/posts/${postId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
     } catch { /* silent */ }
   };
 
@@ -332,6 +391,88 @@ export default function Dashboard() {
                 ? 'Add GA4 Property ID, GSC Site URL, or GBP Location ID to this client to start seeing metrics'
                 : 'Connect Google on the Clients page, then set up GBP, GA4, and GSC IDs to start seeing metrics here'}
             </div>
+          )}
+
+          {/* ── GBP Posts Section ──────────────────────────── */}
+          {selectedId && (
+            <>
+              <div style={styles.sectionTitle}>GBP Post Scheduler</div>
+
+              {/* Schedule form */}
+              <form onSubmit={handleSchedulePost} style={{ background: '#18181c', border: '1px solid #2a2a2e', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                <div style={{ marginBottom: 10 }}>
+                  <textarea
+                    style={styles.postInput}
+                    placeholder="Post content — what do you want to publish to Google Business Profile?"
+                    value={postForm.content}
+                    onChange={(e) => setPostForm((p) => ({ ...p, content: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <input
+                    style={styles.postInputSm}
+                    type="text"
+                    placeholder="Image URL (optional)"
+                    value={postForm.image_url}
+                    onChange={(e) => setPostForm((p) => ({ ...p, image_url: e.target.value }))}
+                  />
+                  <input
+                    style={styles.postInputSm}
+                    type="datetime-local"
+                    value={postForm.scheduled_for}
+                    onChange={(e) => setPostForm((p) => ({ ...p, scheduled_for: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <button type="submit" style={{ ...styles.postSubmit, opacity: postSubmitting ? 0.5 : 1 }} disabled={postSubmitting}>
+                    {postSubmitting ? 'Scheduling...' : 'Schedule Post'}
+                  </button>
+                  {postMsg && (
+                    <span style={styles.postMsg(postMsg.includes('success'))}>{postMsg}</span>
+                  )}
+                </div>
+              </form>
+
+              {/* Scheduled posts list */}
+              {posts.length === 0 ? (
+                <div style={styles.noData}>No posts scheduled yet — use the form above to schedule a GBP post</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+                  {posts.map((post) => (
+                    <div key={post.id} style={styles.postCard}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+                          <span style={styles.postBadge(post.status)}>{post.status}</span>
+                          <span style={{ fontSize: 12, color: '#555' }}>
+                            {post.status === 'scheduled'
+                              ? `Scheduled: ${new Date(post.scheduled_for).toLocaleString()}`
+                              : post.published_at
+                              ? `Published: ${new Date(post.published_at).toLocaleString()}`
+                              : new Date(post.scheduled_for).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#ccc', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{post.content}</div>
+                        {post.image_url && (
+                          <div style={{ marginTop: 6, fontSize: 12, color: '#6c63ff' }}>
+                            <a href={post.image_url} target="_blank" rel="noreferrer" style={{ color: '#6c63ff' }}>Image link</a>
+                          </div>
+                        )}
+                      </div>
+                      {post.status === 'scheduled' && (
+                        <button
+                          onClick={() => handleDeletePost(post.id)}
+                          style={{ background: 'none', border: '1px solid #3a2a2a', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, flexShrink: 0 }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
