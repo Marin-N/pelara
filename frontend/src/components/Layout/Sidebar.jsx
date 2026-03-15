@@ -6,6 +6,8 @@ const nav = [
   { to: '/clients', label: 'Clients', icon: '🏢' },
   { to: '/calls', label: 'Calls', icon: '📞' },
   { to: '/competitors', label: 'Competitors', icon: '🔭' },
+  { to: '/reviews', label: 'Reviews', icon: '⭐' },
+  { to: '/action-plans', label: 'Action Plan', icon: '🎯' },
   { to: '/reports', label: 'Reports', icon: '📄' },
   { to: '/alerts', label: 'Alerts', icon: '🔔' },
   { to: '/billing', label: 'Billing', icon: '💳' },

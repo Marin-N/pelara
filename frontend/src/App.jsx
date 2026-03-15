@@ -12,6 +12,8 @@ import Alerts from './pages/Alerts.jsx';
 import Billing from './pages/Billing.jsx';
 import Settings from './pages/Settings.jsx';
 import CallbackPage from './pages/Callback.jsx';
+import Reviews from './pages/Reviews.jsx';
+import ActionPlans from './pages/ActionPlans.jsx';
 import LoadingSpinner from './components/Common/LoadingSpinner.jsx';
 
 // Wraps a route — redirects to login if user is not authenticated
@@ -45,6 +47,8 @@ export default function App() {
           <Route path="alerts" element={<Alerts />} />
           <Route path="billing" element={<Billing />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="reviews" element={<Reviews />} />
+          <Route path="action-plans" element={<ActionPlans />} />
         </Route>
       </Routes>
     </BrowserRouter>
