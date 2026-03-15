@@ -14,6 +14,7 @@ import Settings from './pages/Settings.jsx';
 import CallbackPage from './pages/Callback.jsx';
 import Reviews from './pages/Reviews.jsx';
 import ActionPlans from './pages/ActionPlans.jsx';
+import Onboarding from './pages/Onboarding.jsx';
 import LoadingSpinner from './components/Common/LoadingSpinner.jsx';
 
 // Wraps a route — redirects to login if user is not authenticated
@@ -30,6 +31,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/callback" element={<CallbackPage />} />
+        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route
           path="/"
           element={

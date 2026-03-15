@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useClients } from '../hooks/useClients.js';
 import api from '../services/api.js';
 import { formatAxisDate } from '../utils/chartHelpers.js';
+import { useToast } from '../components/Common/Toast.jsx';
+import { CardListSkeleton } from '../components/Common/LoadingSkeleton.jsx';
+import EmptyState from '../components/Common/EmptyState.jsx';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -25,18 +28,16 @@ const PctBadge = ({ pct, higherIsBetter = true }) => {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 10 },
   title: { fontSize: 24, fontWeight: 700, color: '#fff' },
   select: { background: '#18181c', border: '1px solid #333', color: '#fff', padding: '8px 12px', borderRadius: 8, fontSize: 14 },
   genBtn: { background: '#6c63ff', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 },
-  genBtnLoading: { opacity: 0.6, cursor: 'not-allowed' },
   card: { background: '#18181c', border: '1px solid #2a2a2e', borderRadius: 12, padding: '20px 24px', marginBottom: 12, cursor: 'pointer', transition: 'border-color 0.15s' },
   cardActive: { borderColor: '#6c63ff' },
   period: { fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 4 },
   summary: { fontSize: 13, color: '#a5a0ff', marginBottom: 10 },
-  chips: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  chips: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   chip: { fontSize: 11, padding: '3px 8px', borderRadius: 20, background: '#111', border: '1px solid #2a2a2e', color: '#888' },
-  emptyBox: { background: '#18181c', border: '1px solid #2a2a2e', borderRadius: 12, padding: 48, textAlign: 'center', color: '#555', fontSize: 14 },
   // Detail panel
   detail: { background: '#111', border: '1px solid #6c63ff22', borderRadius: 12, padding: '28px 28px', marginBottom: 24 },
   sectionTitle: { fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 16, marginTop: 28, paddingBottom: 8, borderBottom: '1px solid #2a2a2e' },
@@ -48,9 +49,10 @@ const s = {
   chartLabel: { fontSize: 12, color: '#666', marginBottom: 12 },
   rec: { fontSize: 13, color: '#aaa', padding: '8px 0 8px 14px', borderLeft: '2px solid #6c63ff', marginBottom: 8 },
   alertRow: { fontSize: 13, color: '#fca5a5', padding: '6px 0', borderBottom: '1px solid #2a2a2e' },
+  iconBtn: { background: 'none', border: '1px solid #2a2a2e', color: '#555', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13, transition: 'color 0.15s' },
 };
 
-// ── MetricBox component ───────────────────────────────────────────────────────
+// ── MetricBox ─────────────────────────────────────────────────────────────────
 
 const MetricBox = ({ label, thisVal, lastVal, pct, higherIsBetter = true }) => (
   <div style={s.metricBox}>
@@ -75,10 +77,7 @@ const ComparisonChart = ({ data, dataKey, label, color }) => {
           <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2e" />
           <XAxis dataKey="date" tickFormatter={formatAxisDate} tick={{ fontSize: 10, fill: '#555' }} />
           <YAxis tick={{ fontSize: 10, fill: '#555' }} />
-          <Tooltip
-            contentStyle={{ background: '#1e1e22', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
-            labelFormatter={formatAxisDate}
-          />
+          <Tooltip contentStyle={{ background: '#1e1e22', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} labelFormatter={formatAxisDate} />
           <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
@@ -99,7 +98,6 @@ const ReportDetail = ({ report }) => {
         {fmtShort(data.period.start)} – {fmtDate(data.period.end)}
       </div>
 
-      {/* GSC */}
       {gsc?.available && (
         <>
           <div style={s.sectionTitle}>🔍 Google Search Console</div>
@@ -116,7 +114,6 @@ const ReportDetail = ({ report }) => {
         </>
       )}
 
-      {/* GBP */}
       {gbp?.available && (
         <>
           <div style={s.sectionTitle}>📍 Google Business Profile</div>
@@ -133,7 +130,6 @@ const ReportDetail = ({ report }) => {
         </>
       )}
 
-      {/* GA4 */}
       {ga4?.available && (
         <>
           <div style={s.sectionTitle}>📊 Google Analytics 4</div>
@@ -146,7 +142,6 @@ const ReportDetail = ({ report }) => {
         </>
       )}
 
-      {/* Facebook */}
       {facebook?.available && (
         <>
           <div style={s.sectionTitle}>📱 Facebook Page</div>
@@ -158,7 +153,6 @@ const ReportDetail = ({ report }) => {
         </>
       )}
 
-      {/* Alerts */}
       {alerts?.length > 0 && (
         <>
           <div style={s.sectionTitle}>⚠ Alerts this week ({alerts.length})</div>
@@ -166,7 +160,6 @@ const ReportDetail = ({ report }) => {
         </>
       )}
 
-      {/* Recommendations */}
       {recommendations?.length > 0 && (
         <>
           <div style={s.sectionTitle}>💡 Actions for this week</div>
@@ -182,13 +175,14 @@ const ReportDetail = ({ report }) => {
 export default function Reports() {
   const { clients } = useClients();
   const { getAccessTokenSilently } = useAuth0();
+  const toast = useToast();
   const [selectedId, setSelectedId] = useState('');
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [openId, setOpenId] = useState(null);
-  const [fullReports, setFullReports] = useState({}); // cache full report data by id
-  const [genMsg, setGenMsg] = useState('');
+  const [fullReports, setFullReports] = useState({});
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     if (!selectedId && clients.length) setSelectedId(clients[0].id);
@@ -199,52 +193,73 @@ export default function Reports() {
     setLoading(true);
     try {
       const token = await getAccessTokenSilently();
-      const res = await api.get(`/api/reports/${selectedId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/api/reports/${selectedId}`, { headers: { Authorization: `Bearer ${token}` } });
       setReports(res.data.data || []);
-    } catch {
-      setReports([]);
-    } finally {
-      setLoading(false);
-    }
+    } catch { setReports([]); }
+    setLoading(false);
   }, [selectedId, getAccessTokenSilently]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
-  // Toggle report open — lazy-load full data on first open
   const handleToggle = async (reportId) => {
     if (openId === reportId) { setOpenId(null); return; }
     setOpenId(reportId);
-    if (fullReports[reportId]) return; // already cached
-
+    if (fullReports[reportId]) return;
     try {
       const token = await getAccessTokenSilently();
-      const res = await api.get(`/api/reports/${selectedId}/${reportId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/api/reports/${selectedId}/${reportId}`, { headers: { Authorization: `Bearer ${token}` } });
       setFullReports((prev) => ({ ...prev, [reportId]: res.data.data }));
-    } catch { /* show partial data from list */ }
+    } catch { /* show partial */ }
   };
 
   const handleGenerate = async () => {
     if (!selectedId || generating) return;
     setGenerating(true);
-    setGenMsg('');
     try {
       const token = await getAccessTokenSilently();
-      await api.post(`/api/reports/${selectedId}/generate?email=false`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setGenMsg('Report generated successfully');
+      await api.post(`/api/reports/${selectedId}/generate?email=false`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      toast.show('Report generated successfully', 'success');
       await fetchReports();
-      setTimeout(() => setGenMsg(''), 4000);
     } catch (err) {
-      setGenMsg(err.response?.data?.error || 'Failed to generate report — need at least 14 days of metric data');
-      setTimeout(() => setGenMsg(''), 6000);
-    } finally {
-      setGenerating(false);
+      toast.show(err.response?.data?.error || 'Failed to generate — need at least 14 days of metric data', 'error');
     }
+    setGenerating(false);
+  };
+
+  const handleDelete = async (e, reportId) => {
+    e.stopPropagation();
+    if (!confirm('Delete this report? This cannot be undone.')) return;
+    try {
+      const token = await getAccessTokenSilently();
+      await api.delete(`/api/reports/${reportId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      if (openId === reportId) setOpenId(null);
+      toast.show('Report deleted', 'success');
+    } catch (err) {
+      toast.show(err.response?.data?.error || 'Failed to delete report', 'error');
+    }
+  };
+
+  const handleDownloadPdf = async (e, reportId, clientName) => {
+    e.stopPropagation();
+    setDownloadingId(reportId);
+    try {
+      const token = await getAccessTokenSilently();
+      const res = await api.get(`/api/report-pdf/${reportId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pelara-report-${(clientName || 'report').replace(/\s+/g, '-').toLowerCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.show('PDF downloaded', 'success');
+    } catch {
+      toast.show('Failed to generate PDF', 'error');
+    }
+    setDownloadingId(null);
   };
 
   const selectedClient = clients.find((c) => c.id === selectedId);
@@ -260,41 +275,26 @@ export default function Reports() {
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {clients.length > 1 && (
             <select style={s.select} value={selectedId} onChange={(e) => { setSelectedId(e.target.value); setOpenId(null); }}>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          <button
-            style={{ ...s.genBtn, ...(generating ? s.genBtnLoading : {}) }}
-            onClick={handleGenerate}
-            disabled={generating}
-          >
+          <button style={{ ...s.genBtn, opacity: generating ? 0.6 : 1 }} onClick={handleGenerate} disabled={generating}>
             {generating ? 'Generating...' : '+ Generate Report'}
           </button>
         </div>
       </div>
 
-      {genMsg && (
-        <div style={{
-          background: genMsg.includes('success') ? '#14532d' : '#3b0a0a',
-          border: `1px solid ${genMsg.includes('success') ? '#22c55e33' : '#ef444433'}`,
-          color: genMsg.includes('success') ? '#22c55e' : '#ef4444',
-          padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13,
-        }}>
-          {genMsg}
-        </div>
-      )}
-
-      {loading && <div style={s.emptyBox}>Loading reports...</div>}
+      {loading && <CardListSkeleton count={3} />}
 
       {!loading && !reports.length && (
-        <div style={s.emptyBox}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 8 }}>No reports yet</div>
-          <div>Reports generate automatically every Monday. Click "Generate Report" to create one now.</div>
-          <div style={{ fontSize: 12, color: '#444', marginTop: 8 }}>Requires at least 14 days of metric data for meaningful week-over-week comparison.</div>
-        </div>
+        <EmptyState
+          icon="📄"
+          title="No reports yet"
+          subtitle="Reports generate automatically every Monday. Click Generate Report to create one now."
+        />
       )}
 
       {!loading && reports.map((report) => {
@@ -305,19 +305,14 @@ export default function Reports() {
         return (
           <div key={report.id}>
             <div
-              style={{
-                ...s.card,
-                ...(isOpen ? s.cardActive : {}),
-              }}
+              style={{ ...s.card, ...(isOpen ? s.cardActive : {}) }}
               onMouseOver={(e) => { if (!isOpen) e.currentTarget.style.borderColor = '#6c63ff88'; }}
-              onMouseOut={(e) => { if (!isOpen) e.currentTarget.style.borderColor = '#2a2a2e'; }}
+              onMouseOut={(e) => { if (!isOpen) e.currentTarget.style.borderColor = isOpen ? '#6c63ff' : '#2a2a2e'; }}
               onClick={() => handleToggle(report.id)}
             >
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={s.period}>
-                    {fmtShort(report.period_start)} – {fmtDate(report.period_end)}
-                  </div>
+                  <div style={s.period}>{fmtShort(report.period_start)} – {fmtDate(report.period_end)}</div>
                   <div style={s.summary}>{report.summary || 'Weekly metrics report'}</div>
                   <div style={s.chips}>
                     <span style={s.chip}>{report.report_type}</span>
@@ -327,17 +322,30 @@ export default function Reports() {
                       </span>
                     )}
                     {report.email_sent_at && (
-                      <span style={{ ...s.chip, color: '#22c55e', border: '1px solid #22c55e22' }}>
-                        ✓ Emailed
-                      </span>
+                      <span style={{ ...s.chip, color: '#22c55e', border: '1px solid #22c55e22' }}>✓ Emailed</span>
                     )}
                     <span style={{ ...s.chip, marginLeft: 'auto' }}>
                       {new Date(report.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
-                <div style={{ color: '#555', fontSize: 18, marginLeft: 16, marginTop: 2 }}>
-                  {isOpen ? '▲' : '▼'}
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 12 }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    style={{ ...s.iconBtn, color: downloadingId === report.id ? '#6c63ff' : '#555' }}
+                    onClick={(e) => handleDownloadPdf(e, report.id, selectedClient?.name)}
+                    disabled={downloadingId === report.id}
+                    title="Download PDF"
+                  >
+                    {downloadingId === report.id ? '...' : '⬇ PDF'}
+                  </button>
+                  <button
+                    style={{ ...s.iconBtn, color: '#ef4444', borderColor: '#ef444422' }}
+                    onClick={(e) => handleDelete(e, report.id)}
+                    title="Delete report"
+                  >🗑</button>
+                  <span style={{ color: '#555', fontSize: 18, marginLeft: 6 }}>{isOpen ? '▲' : '▼'}</span>
                 </div>
               </div>
             </div>
